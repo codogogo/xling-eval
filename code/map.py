@@ -52,7 +52,7 @@ trg_embs = np.load(args.embs_trg)
 vocab_trg = pickle.load(open(args.vocab_trg,"rb"))
 
 model = args.model
-if model not in ["p", "b", "c"]:
+if model not in ["p", "b", "c", "r"]:
   print("Error: Unknown mapping/projection model.")
   exit(code = 1)
 
@@ -76,11 +76,19 @@ elif model == "b":
 elif model == "c":
   embs_src_shared, embs_trg_shared, _ = projection.project_cca(vocab_src, src_embs, vocab_trg, trg_embs, trans_dict)
 
+elif model == "r":
+  embs_src_shared, embs_trg_shared, _ = projection.project_proc_bootstrap_reproduce(vocab_src, src_embs, vocab_trg, trg_embs, trans_dict)
+  
+
 print(datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S') + " Serializing projected source language embeddings...")
 util.serialize_embs(output + lang_src + "-" + lang_trg + "." + lang_src + ".vocab", output + lang_src + "-" + lang_trg + "." + lang_src + ".vectors", vocab_src, embs_src_shared, emb_norm = False, vocab_inv = False)
 
 print(datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S') + " Serializing target language embeddings...")
 util.serialize_embs(output + lang_src + "-" + lang_trg + "." + lang_trg + ".vocab", output + lang_src + "-" + lang_trg + "." + lang_trg + ".vectors", vocab_trg, embs_trg_shared, emb_norm = False, vocab_inv = False)
+
+if model == "p":
+  print("Saving projection matrix...")
+  np.save(output + lang_src + "-" + lang_trg + ".proj", proj_mat)
 
 print(datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S') + " All done. I'm out of here, ciao bella!")
 

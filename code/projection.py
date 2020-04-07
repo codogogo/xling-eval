@@ -85,3 +85,51 @@ def project_proc_bootstrap(vocab_dict_src, embs_src, vocab_dict_trg, embs_trg, t
     trans_dict = new_trans_dict
 
   return embs_src_projected, embs_trg
+
+def project_proc_bootstrap_reproduce(vocab_dict_src, embs_src, vocab_dict_trg, embs_trg, trans_dict = None, growth_rate = 1.5, limit = 10000):
+  vocab_dict_src_inv = {v : k for k, v in vocab_dict_src.items()}
+  vocab_dict_trg_inv = {v : k for k, v in vocab_dict_trg.items()} 
+  cntr = 0
+
+  orig_src_norm = util.mat_normalize(embs_src, norm_order=2, axis=1)
+  orig_trg_norm = util.mat_normalize(embs_trg, norm_order=2, axis=1) 
+
+  size = 0
+  orig_trans_dict = trans_dict
+  while True:
+    cntr += 1
+    print("Boostrap iteration: " + str(cntr))
+    
+    embs_src_projected, _, size1 = project_proc(vocab_dict_src, embs_src, vocab_dict_trg, embs_trg, trans_dict)
+    embs_trg_projected, _, size2 = project_proc(vocab_dict_trg, embs_trg, vocab_dict_src, embs_src, [(x[1], x[0]) for x in trans_dict])
+    
+    if size1 < 1.01 * size:
+      break
+    else:
+      size = size1
+
+    proj_src_norm = util.mat_normalize(embs_src_projected, norm_order=2, axis=1)
+    proj_trg_norm = util.mat_normalize(embs_trg_projected, norm_order=2, axis=1)
+
+    if cntr == 2:
+      break
+
+    sims_ind_src_trg = util.big_matrix_multiplication(proj_src_norm, orig_trg_norm.transpose(), lambda x: np.argmax(x, axis = 1), chunk_size = 30000)
+    sims_ind_trg_src = util.big_matrix_multiplication(proj_trg_norm, orig_src_norm.transpose(), lambda x: np.argmax(x, axis = 1), chunk_size = 30000)
+  
+    matches = [i for i in range(len(sims_ind_src_trg)) if sims_ind_trg_src[sims_ind_src_trg[i]] == i]
+
+    rank_pairs = [(m, sims_ind_src_trg[m]) for m in matches]
+    rank_pairs.sort(key=lambda x: x[0] + x[1])
+    new_trans_dict = [(vocab_dict_src_inv[m[0]], vocab_dict_trg_inv[m[1]]) for m in rank_pairs]	
+
+    cnt = limit - len(orig_trans_dict)
+
+    fin_tr_dict = []
+    fin_tr_dict.extend(orig_trans_dict)
+    fin_tr_dict.extend(new_trans_dict[:cnt])     
+
+    print("Dict size for next iteration: " + str(len(fin_tr_dict)))
+    trans_dict = fin_tr_dict
+
+  return embs_src_projected, embs_trg
